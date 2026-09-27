@@ -21,3 +21,11 @@ def test_export_csv_writes_all_transactions(services, tmp_path):
     content = out_file.read_text()
     assert "500" in content
     assert "expense" in content
+
+def test_import_csv_skips_duplicate_rows(services, tmp_path):
+    services['transaction_service'].add_transaction(amount=500, type='expense', date='2026-09-27', category_id=services['category_id'])
+    csv_file = tmp_path / "transactions.csv"
+    csv_file.write_text(f"amount,type,date,category_id\n500,expense,2026-09-27,{services['category_id']}\n")
+    result = services['csv_service'].import_csv(str(csv_file))
+    assert result['imported'] == 0
+    assert result['skipped_duplicates'] == 1
