@@ -118,3 +118,23 @@ class TransactionRepo:
         row = cursor.fetchone()
         conn.close()
         return row['total'] if row['total'] is not None else 0.0
+    
+    def sum_by_type_and_month(self, type, month):
+        """Sum all transaction amounts of a given type in a given month.
+
+        Parameters:
+            type: Either 'income' or 'expense'.
+            month: Year-month string (e.g., '2026-09').
+
+        Returns:
+            The total amount as a float, or 0.0 if no matching transactions.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT SUM(amount) as total FROM transactions WHERE type = ? AND date LIKE ?",
+            (type, f"{month}%")
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row['total'] if row['total'] is not None else 0.0
