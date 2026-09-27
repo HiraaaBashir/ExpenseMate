@@ -1,16 +1,46 @@
-# This is a sample Python script.
+"""
+Entry point for ExpenseMate.
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+Creates the database tables if they don't exist yet (using IF NOT EXISTS,
+so it's safe to run even if schema.py already set them up once), then
+opens the UI.
+"""
+from db import get_connection
+from ui import ExpenseMateUI
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def ensure_schema():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS categories(
+            category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_name TEXT UNIQUE NOT NULL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS transactions(
+            transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            amount REAL NOT NULL CHECK (amount > 0),
+            type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+            date TEXT NOT NULL,
+            category_id INTEGER NOT NULL REFERENCES categories(category_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS budgets(
+            budget_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL REFERENCES categories(category_id),
+            month TEXT NOT NULL,
+            limit_amount INTEGER NOT NULL CHECK (limit_amount > 0),
+            UNIQUE (category_id, month)
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    ensure_schema()
+    app = ExpenseMateUI()
+    app.mainloop()

@@ -33,6 +33,14 @@ class BudgetService:
             raise DuplicateBudgetError(f"Budget already exists for category {category_id} in {month}.")
         return self.repo.add(category_id, month, limit_amount)
 
+    def get_all_budgets(self):
+        """Return every budget across all categories and months.
+
+        Returns:
+            A list of Budget objects, empty if none exist.
+        """
+        return self.repo.get_all()
+
     def check_budget_status(self, category_id, month):
         """Check spending against the budget for a category and month.
 
@@ -53,3 +61,4 @@ class BudgetService:
 
         alert_triggered = percent_spent >= ALERT_THRESHOLD
         return {'percent_spent': percent_spent, 'alert_triggered': alert_triggered}
+        

@@ -2,14 +2,14 @@ import sqlite3
 conn = sqlite3.connect('expensemate.db')
 cursor = conn.cursor()
 cursor.execute("""
-    CREATE TABLE categories(
+    CREATE TABLE IF NOT EXISTS categories(
         category_id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_name TEXT UNIQUE NOT NULL
     )
 """)
 
 cursor.execute("""
-    CREATE TABLE transactions
+    CREATE TABLE IF NOT EXISTS transactions
     (
         transaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL CHECK (amount > 0),
@@ -19,7 +19,7 @@ cursor.execute("""
     )
 """)
 cursor.execute("""
-    CREATE TABLE budgets
+    CREATE TABLE IF NOT EXISTS budgets
     (
         budget_id    INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id  INTEGER NOT NULL REFERENCES categories(category_id),
