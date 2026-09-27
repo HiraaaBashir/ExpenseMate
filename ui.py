@@ -19,7 +19,7 @@ from exceptions import ValidationError, DuplicateBudgetError
 from category_repo import CategoryNotFoundError
 from transaction_repo import TransactionNotFoundError
 from theme import apply_theme, card, COLORS, FONT
-
+from analytics_service import AnalyticsService
 
 def labeled_entry(parent, label, var, width=16, row=0, col=0, **grid_opts):
     wrap = ttk.Frame(parent, style="Card.TFrame")
@@ -51,6 +51,7 @@ class ExpenseMateUI(tk.Tk):
         self.budget_service = BudgetService()
         self.transaction_service = TransactionService(self.budget_service)
         self.csv_service = CSVService(self.transaction_service)
+        self.analytics_service = AnalyticsService()
 
         self.category_map = {}  # category name -> category_id
 
@@ -420,14 +421,15 @@ class ExpenseMateUI(tk.Tk):
             widget.destroy()
 
         month = self.analytics_month_var.get()
+        print(f"DEBUG: month value = '{month}'")
         categories = {c.category_id: c.category_name for c in self.category_service.get_all_categories()}
         transactions = [t for t in self.transaction_service.get_all_transactions() if t.date[:7] == month]
 
-        income = sum(t.amount for t in transactions if t.type == "income")
-        expense = sum(t.amount for t in transactions if t.type == "expense")
-        self.income_stat.configure(text=f"{income:.2f}")
-        self.expense_stat.configure(text=f"{expense:.2f}")
-        self.balance_stat.configure(text=f"{income - expense:.2f}")
+        summary = self.analytics_service.get_monthly_summary(month)
+        print(f"DEBUG: summary = {summary}")
+        self.income_stat.configure(text=f"{summary['income']:.2f}")
+        self.expense_stat.configure(text=f"{summary['expense']:.2f}")
+        self.balance_stat.configure(text=f"{summary['balance']:.2f}")
 
         breakdown = defaultdict(float)
         for t in transactions:
