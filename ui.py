@@ -9,17 +9,17 @@ there's no dedicated analytics module in the backend.
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import date
-from collections import defaultdict
 
 from category_service import CategoryService
 from budget_service import BudgetService
 from transaction_service import TransactionService
 from csv_service import CSVService
+from analytics_service import AnalyticsService
 from exceptions import ValidationError, DuplicateBudgetError
 from category_repo import CategoryNotFoundError
 from transaction_repo import TransactionNotFoundError
 from theme import apply_theme, card, COLORS, FONT
-from analytics_service import AnalyticsService
+
 
 def labeled_entry(parent, label, var, width=16, row=0, col=0, **grid_opts):
     wrap = ttk.Frame(parent, style="Card.TFrame")
@@ -97,6 +97,12 @@ class ExpenseMateUI(tk.Tk):
         self.refresh_transactions()
         self.refresh_budgets()
 
+    @staticmethod
+    def _clear_tree(tree):
+        """Remove every row from a Treeview before repopulating it."""
+        for row in tree.get_children():
+            tree.delete(row)
+
     def _show_view(self, key):
         for k, btn in self._nav_buttons.items():
             btn.configure(style="NavActive.TButton" if k == key else "Nav.TButton")
@@ -160,8 +166,7 @@ class ExpenseMateUI(tk.Tk):
                 "Error", "This category can't be deleted - it still has transactions or a budget linked to it.")
 
     def refresh_categories(self):
-        for row in self.category_tree.get_children():
-            self.category_tree.delete(row)
+        self._clear_tree(self.category_tree)
         categories = self.category_service.get_all_categories()
         self.category_map = {c.category_name: c.category_id for c in categories}
         for i, c in enumerate(categories):
@@ -279,8 +284,7 @@ class ExpenseMateUI(tk.Tk):
             messagebox.showerror("Error", str(e))
 
     def refresh_transactions(self):
-        for row in self.transaction_tree.get_children():
-            self.transaction_tree.delete(row)
+        self._clear_tree(self.transaction_tree)
         categories = {c.category_id: c.category_name for c in self.category_service.get_all_categories()}
         rows = sorted(self.transaction_service.get_all_transactions(), key=lambda t: t.date, reverse=True)
         for i, t in enumerate(rows):
@@ -365,8 +369,7 @@ class ExpenseMateUI(tk.Tk):
             messagebox.showerror("Error", str(e))
 
     def refresh_budgets(self):
-        for row in self.budget_tree.get_children():
-            self.budget_tree.delete(row)
+        self._clear_tree(self.budget_tree)
         categories = {c.category_id: c.category_name for c in self.category_service.get_all_categories()}
         for i, b in enumerate(self.budget_service.get_all_budgets()):
             status = self.budget_service.check_budget_status(b.category_id, b.month)
@@ -421,20 +424,12 @@ class ExpenseMateUI(tk.Tk):
             widget.destroy()
 
         month = self.analytics_month_var.get()
-        print(f"DEBUG: month value = '{month}'")
-        categories = {c.category_id: c.category_name for c in self.category_service.get_all_categories()}
-        transactions = [t for t in self.transaction_service.get_all_transactions() if t.date[:7] == month]
-
         summary = self.analytics_service.get_monthly_summary(month)
-        print(f"DEBUG: summary = {summary}")
         self.income_stat.configure(text=f"{summary['income']:.2f}")
         self.expense_stat.configure(text=f"{summary['expense']:.2f}")
         self.balance_stat.configure(text=f"{summary['balance']:.2f}")
 
-        breakdown = defaultdict(float)
-        for t in transactions:
-            if t.type == "expense":
-                breakdown[categories.get(t.category_id, "?")] += t.amount
+        breakdown = self.analytics_service.get_category_breakdown(month)
 
         palette = ["#16A085", "#4C6FFF", "#F39C12", "#E74C3C", "#8E44AD", "#2C3E50"]
         fig, ax = plt.subplots(figsize=(5, 3.6))

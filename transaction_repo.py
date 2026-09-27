@@ -99,6 +99,51 @@ class TransactionRepo:
         conn.commit()
         conn.close()
 
+    def exists(self, amount, type, date, category_id):
+        """Check whether a transaction with this exact amount/type/date/category already exists.
+
+        Used by CSV import to avoid creating duplicate entries when the same
+        file (or an overlapping one) is imported more than once.
+
+        Parameters:
+            amount: The transaction amount to match.
+            type: Either 'income' or 'expense'.
+            date: ISO-format date string (e.g., '2026-09-26').
+            category_id: ID of the associated category.
+
+        Returns:
+            True if a matching transaction already exists, False otherwise.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM transactions WHERE amount = ? AND type = ? AND date = ? AND category_id = ? LIMIT 1",
+            (amount, type, date, category_id)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+
+    def sum_by_type_and_month(self, type, month):
+        """Sum all amounts of a given type ('income' or 'expense') in a given month.
+
+        Parameters:
+            type: Either 'income' or 'expense'.
+            month: Year-month string (e.g., '2026-09').
+
+        Returns:
+            The total as a float, or 0.0 if no matching transactions.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT SUM(amount) as total FROM transactions WHERE type = ? AND date LIKE ?",
+            (type, f"{month}%")
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row['total'] if row['total'] is not None else 0.0
+
     def sum_by_category_and_month(self, category_id, month):
         """Sum all expense amounts for a category in a given month.
 
@@ -118,45 +163,3 @@ class TransactionRepo:
         row = cursor.fetchone()
         conn.close()
         return row['total'] if row['total'] is not None else 0.0
-
-    def sum_by_type_and_month(self, type, month):
-        """Sum all transaction amounts of a given type in a given month.
-
-        Parameters:
-            type: Either 'income' or 'expense'.
-            month: Year-month string (e.g., '2026-09').
-
-        Returns:
-            The total amount as a float, or 0.0 if no matching transactions.
-        """
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT SUM(amount) as total FROM transactions WHERE type = ? AND date LIKE ?",
-            (type, f"{month}%")
-        )
-        row = cursor.fetchone()
-        conn.close()
-        return row['total'] if row['total'] is not None else 0.0
-
-    def exists(self, amount, type, date, category_id):
-        """Check whether a transaction with matching amount, type, date, and category already exists.
-
-        Parameters:
-            amount: Transaction amount to check.
-            type: Either 'income' or 'expense'.
-            date: ISO-format date string.
-            category_id: ID of the associated category.
-
-        Returns:
-            True if a matching transaction already exists, False otherwise.
-        """
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT 1 FROM transactions WHERE amount = ? AND type = ? AND date = ? AND category_id = ? LIMIT 1",
-            (amount, type, date, category_id)
-        )
-        row = cursor.fetchone()
-        conn.close()
-        return row is not None

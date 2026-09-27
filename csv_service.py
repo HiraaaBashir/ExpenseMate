@@ -25,8 +25,8 @@ class CSVService:
             for i, row in enumerate(reader, start=2):
                 try:
                     amount = float(row['amount'])
-                    type_ = row['type']
-                    date = row['date']
+                    type_ = row['type'].strip()
+                    date = row['date'].strip()
                     category_id = int(row['category_id'])
                     if self.transaction_service.repo.exists(amount, type_, date, category_id):
                         skipped_duplicates += 1
