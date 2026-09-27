@@ -118,7 +118,7 @@ class TransactionRepo:
         row = cursor.fetchone()
         conn.close()
         return row['total'] if row['total'] is not None else 0.0
-    
+
     def sum_by_type_and_month(self, type, month):
         """Sum all transaction amounts of a given type in a given month.
 
@@ -138,3 +138,25 @@ class TransactionRepo:
         row = cursor.fetchone()
         conn.close()
         return row['total'] if row['total'] is not None else 0.0
+
+    def exists(self, amount, type, date, category_id):
+        """Check whether a transaction with matching amount, type, date, and category already exists.
+
+        Parameters:
+            amount: Transaction amount to check.
+            type: Either 'income' or 'expense'.
+            date: ISO-format date string.
+            category_id: ID of the associated category.
+
+        Returns:
+            True if a matching transaction already exists, False otherwise.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM transactions WHERE amount = ? AND type = ? AND date = ? AND category_id = ? LIMIT 1",
+            (amount, type, date, category_id)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
