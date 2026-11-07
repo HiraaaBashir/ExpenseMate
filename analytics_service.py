@@ -1,42 +1,39 @@
 from collections import defaultdict
+
 from transaction_repo import TransactionRepo
 from category_repo import CategoryRepo
 
 
 class AnalyticsService:
-    """Business logic for monthly income/expense/balance summaries and category breakdowns."""
+    """Business logic for monthly summaries and category breakdowns."""
 
     def __init__(self):
-        self.repo = TransactionRepo()
+        self.transaction_repo = TransactionRepo()
         self.category_repo = CategoryRepo()
 
-    def get_monthly_summary(self, month):
-        """Compute total income, expense, and balance for a given month.
-
-        Parameters:
-            month: Year-month string (e.g., '2026-09').
+    def monthly_summary(self, month):
+        """Total income, total expense and balance for a month (YYYY-MM).
 
         Returns:
             A dict: {'income': float, 'expense': float, 'balance': float}.
         """
-        income = self.repo.sum_by_type_and_month('income', month)
-        expense = self.repo.sum_by_type_and_month('expense', month)
-        balance = income - expense
-        return {'income': income, 'expense': expense, 'balance': balance}
+        transactions = self._transactions_in_month(month)
+        income = sum(t.amount for t in transactions if t.type == 'income')
+        expense = sum(t.amount for t in transactions if t.type == 'expense')
+        return {'income': income, 'expense': expense, 'balance': income - expense}
 
-    def get_category_breakdown(self, month):
-        """Compute total expense per category for a given month.
-
-        Parameters:
-            month: Year-month string (e.g., '2026-09').
+    def category_breakdown(self, month):
+        """Total expense per category name for a month (YYYY-MM).
 
         Returns:
-            A dict mapping category_name -> total expense amount, for
-            categories with at least one expense transaction that month.
+            A dict like {'Food': 300.0}; empty if there are no expenses.
         """
-        categories = {c.category_id: c.category_name for c in self.category_repo.get_all()}
+        names = {c.category_id: c.category_name for c in self.category_repo.get_all()}
         breakdown = defaultdict(float)
-        for t in self.repo.get_all():
-            if t.type == "expense" and t.date[:7] == month:
-                breakdown[categories.get(t.category_id, "?")] += t.amount
+        for t in self._transactions_in_month(month):
+            if t.type == 'expense':
+                breakdown[names.get(t.category_id, '?')] += t.amount
         return dict(breakdown)
+
+    def _transactions_in_month(self, month):
+        return [t for t in self.transaction_repo.get_all() if t.date[:7] == month]
