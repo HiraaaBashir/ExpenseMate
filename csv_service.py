@@ -1,9 +1,16 @@
 import csv
+
 from exceptions import ValidationError
+
+EXPORT_COLUMNS = ['transaction_id', 'amount', 'type', 'date', 'category_id']
 
 
 class CSVService:
-    """Handles CSV import and export of transactions."""
+    """Imports and exports transactions as CSV.
+
+    This class only deals with the file format. Every business rule (validation,
+    duplicate detection, budget checks) is delegated to TransactionService.
+    """
 
     def __init__(self, transaction_service):
         self.transaction_service = transaction_service
@@ -17,26 +24,17 @@ class CSVService:
         Returns:
             A dict: {'imported': int, 'skipped_duplicates': int, 'errors': list of (row_number, error_message)}.
         """
-        imported = 0
-        skipped_duplicates = 0
-        errors = []
+        result = {'imported': 0, 'skipped_duplicates': 0, 'errors': []}
         with open(filepath, newline='') as f:
-            reader = csv.DictReader(f)
-            for i, row in enumerate(reader, start=2):
+            # Row 1 is the header, so the first data row is row 2.
+            for row_number, row in enumerate(csv.DictReader(f), start=2):
                 try:
-                    amount = float(row['amount'])
-                    type_ = row['type'].strip()
-                    date = row['date'].strip()
-                    category_id = int(row['category_id'])
-                    if self.transaction_service.repo.exists(amount, type_, date, category_id):
-                        skipped_duplicates += 1
-                        continue
-                    self.transaction_service.add_transaction(amount=amount, type=type_, date=date,
-                                                             category_id=category_id)
-                    imported += 1
+                    outcome = self._import_row(row)
                 except (ValidationError, ValueError, KeyError) as e:
-                    errors.append((i, str(e)))
-        return {'imported': imported, 'skipped_duplicates': skipped_duplicates, 'errors': errors}
+                    result['errors'].append((row_number, str(e)))
+                else:
+                    result[outcome] += 1
+        return result
 
     def export_csv(self, filepath):
         """Export all transactions to a CSV file.
@@ -44,9 +42,26 @@ class CSVService:
         Parameters:
             filepath: Path where the CSV file will be written.
         """
-        transactions = self.transaction_service.get_all_transactions()
         with open(filepath, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['transaction_id', 'amount', 'type', 'date', 'category_id'])
-            for t in transactions:
+            writer.writerow(EXPORT_COLUMNS)
+            for t in self.transaction_service.get_all_transactions():
                 writer.writerow([t.transaction_id, t.amount, t.type, t.date, t.category_id])
+
+    def _import_row(self, row):
+        """Save one CSV row. Returns 'imported' or 'skipped_duplicates'."""
+        fields = self._parse_row(row)
+        if self.transaction_service.is_duplicate(**fields):
+            return 'skipped_duplicates'
+        self.transaction_service.add_transaction(**fields)
+        return 'imported'
+
+    @staticmethod
+    def _parse_row(row):
+        """Convert one raw CSV row into typed keyword arguments (raises ValueError/KeyError if malformed)."""
+        return {
+            'amount': float(row['amount']),
+            'type': row['type'].strip(),
+            'date': row['date'].strip(),
+            'category_id': int(row['category_id']),
+        }

@@ -53,6 +53,10 @@ class TransactionService:
 
         return {'transaction': transaction, 'alert_triggered': alert_triggered, 'percent_spent': percent_spent}
 
+    def is_duplicate(self, amount, type, date, category_id):
+        """Return True if an identical transaction (amount/type/date/category) is already saved."""
+        return self.repo.exists(amount, type, date, category_id)
+
     def get_all_transactions(self):
         """Return all transactions."""
         return self.repo.get_all()
