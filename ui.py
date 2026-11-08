@@ -1,11 +1,3 @@
-"""
-Tkinter UI for ExpenseMate.
-
-Talks to the backend only through the service classes (category_service,
-budget_service, transaction_service, csv_service) - no direct SQL here.
-Analytics is computed here in the UI from data the services already return;
-there's no dedicated analytics module in the backend.
-"""
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import date
@@ -14,7 +6,8 @@ from category_service import CategoryService
 from budget_service import BudgetService
 from transaction_service import TransactionService
 from csv_service import CSVService
-from analytics_service import AnalyticsService
+from analytics_controller import AnalyticsController
+from transaction_controller import TransactionController
 from exceptions import ValidationError, DuplicateBudgetError
 from category_repo import CategoryNotFoundError
 from transaction_repo import TransactionNotFoundError
@@ -51,7 +44,8 @@ class ExpenseMateUI(tk.Tk):
         self.budget_service = BudgetService()
         self.transaction_service = TransactionService(self.budget_service)
         self.csv_service = CSVService(self.transaction_service)
-        self.analytics_service = AnalyticsService()
+        self.transaction_controller = TransactionController(self.transaction_service, self.category_service)
+        self.analytics_controller = AnalyticsController()
 
         self.category_map = {}  # category name -> category_id
 
@@ -236,19 +230,9 @@ class ExpenseMateUI(tk.Tk):
 
     def add_transaction(self):
         category_name = self.transaction_category_var.get()
-        if category_name not in self.category_map:
-            messagebox.showerror("Error", "Please select a category first (add one in the Categories tab).")
-            return
         try:
-            amount = float(self.amount_var.get())
-        except ValueError:
-            messagebox.showerror("Error", "Amount must be a number.")
-            return
-        try:
-            result = self.transaction_service.add_transaction(
-                amount=amount, type=self.type_var.get(), date=self.date_var.get(),
-                category_id=self.category_map[category_name],
-            )
+            result = self.transaction_controller.add_transaction(
+                self.amount_var.get(), self.type_var.get(), self.date_var.get(), category_name)
         except ValidationError as e:
             messagebox.showerror("Error", str(e))
             return
@@ -379,7 +363,7 @@ class ExpenseMateUI(tk.Tk):
                 values=(b.budget_id, categories.get(b.category_id, "?"), b.month, f"{b.limit_amount:.2f}", spent_display))
 
     # ---------------------------------------------------------------
-    # Analytics view (computed here in the UI, no backend analytics module)
+    # Analytics view (data comes from AnalyticsController)
     # ---------------------------------------------------------------
 
     def _build_analytics_view(self, parent):
@@ -420,16 +404,19 @@ class ExpenseMateUI(tk.Tk):
         import matplotlib.pyplot as plt
         from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+        try:
+            report = self.analytics_controller.get_month_report(self.analytics_month_var.get())
+        except ValidationError as e:
+            messagebox.showerror("Error", str(e))
+            return
+
         for widget in self.analytics_frame.winfo_children():
             widget.destroy()
 
-        month = self.analytics_month_var.get()
-        summary = self.analytics_service.get_monthly_summary(month)
+        month, summary, breakdown = report["month"], report["summary"], report["breakdown"]
         self.income_stat.configure(text=f"{summary['income']:.2f}")
         self.expense_stat.configure(text=f"{summary['expense']:.2f}")
         self.balance_stat.configure(text=f"{summary['balance']:.2f}")
-
-        breakdown = self.analytics_service.get_category_breakdown(month)
 
         palette = ["#16A085", "#4C6FFF", "#F39C12", "#E74C3C", "#8E44AD", "#2C3E50"]
         fig, ax = plt.subplots(figsize=(5, 3.6))

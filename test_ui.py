@@ -293,3 +293,28 @@ def test_budget_pulse_blank_when_no_budget_set(app, no_dialogs):
     app._show_budget_pulse(category_id, "2026-09")
 
     assert app.budget_pulse.cget("text") == ""
+
+# ---------------------------------------------------------------
+# Analytics (UI -> AnalyticsController) - regression test for the renamed service methods
+# ---------------------------------------------------------------
+
+def test_analytics_tab_shows_totals_from_controller(app, no_dialogs):
+    app.category_name_var.set("Food")
+    app.add_category()
+    category_id = app.category_map["Food"]
+    app.transaction_service.add_transaction(amount=1000, type="income", date="2026-09-01", category_id=category_id)
+    app.transaction_service.add_transaction(amount=300, type="expense", date="2026-09-02", category_id=category_id)
+
+    app.analytics_month_var.set("2026-09")
+    app._refresh_analytics()
+
+    assert app.income_stat.cget("text") == "1000.00"
+    assert app.expense_stat.cget("text") == "300.00"
+    assert app.balance_stat.cget("text") == "700.00"
+    assert no_dialogs["error"] == []
+
+
+def test_analytics_tab_bad_month_shows_error(app, no_dialogs):
+    app.analytics_month_var.set("Sept 2026")
+    app._refresh_analytics()
+    assert len(no_dialogs["error"]) == 1
